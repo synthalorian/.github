@@ -4,7 +4,7 @@ name: Mod CI (reusable)
 # Call from a mod repo with:
 #   jobs:
 #     mod-ci:
-#       uses: Blackshield-Company/.github/.github/workflows/mod-ci.yml@main
+#       uses: synthalorian/.github/.github/workflows/mod-ci.yml@main
 
 on:
   workflow_call:
