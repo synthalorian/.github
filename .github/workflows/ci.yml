@@ -57,4 +57,14 @@ jobs:
           PY
       - name: Shell script syntax
         run: |
-          find . -name '*.sh' -not -path './.git/*' -not -path '*/node_modules/*' -print0 | xargs -0 -r -n1 bash -n
+          # scripts/verify-release.sh is a bash/python polyglot: bash would exec python3 on line 2,
+          # but `bash -n` parses the whole file, so parse those files as Python instead.
+          rc=0
+          while IFS= read -r -d '' f; do
+            if sed -n 2p "$f" | grep -q '^"exec" "python3"'; then
+              python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read(), sys.argv[1])' "$f" || rc=1
+            else
+              bash -n "$f" || rc=1
+            fi
+          done < <(find . -name '*.sh' -not -path './.git/*' -not -path '*/node_modules/*' -print0)
+          exit "$rc"

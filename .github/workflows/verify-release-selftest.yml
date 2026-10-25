@@ -1,0 +1,41 @@
+name: verify-release selftest
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - "tests/**"
+      - "templates/**"
+      - ".github/workflows/verify-release-selftest.yml"
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "tests/**"
+      - "templates/**"
+      - ".github/workflows/verify-release-selftest.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-release-selftest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  selftest:
+    name: selftest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Unit tests
+        run: python3 -m unittest discover -s tests/verify_release -v
+      - name: Polyglot invocation
+        run: |
+          set -euo pipefail
+          bash scripts/verify-release.sh --help
+          bash scripts/verify-release.sh --version

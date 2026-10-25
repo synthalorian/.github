@@ -1,0 +1,71 @@
+name: Verify release
+
+# Per-repo workflow, copied to each mod repo as .github/workflows/verify-release.yml.
+# Canonical copy: synthalorian/.github templates/verify-release.yml (edit there, then re-sync).
+# Builds the FOMOD release zip exactly like mod-ci does and runs scripts/verify-release.sh on it.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-release:
+    name: verify-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Build (Papyrus compile, plugin, FOMOD pack)
+        run: DIST_DIR="$RUNNER_TEMP/dist" ./build.sh
+
+      - name: Verify release package
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          set -euo pipefail
+          args=(--dist "$RUNNER_TEMP/dist" --repo . --summary "$GITHUB_STEP_SUMMARY")
+          if [ "$REF_TYPE" = "tag" ]; then
+            args+=(--tag "$GITHUB_REF_NAME")
+          fi
+          ./scripts/verify-release.sh "${args[@]}"
+
+      - name: Check verifier drift against synthalorian/.github
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          url="https://raw.githubusercontent.com/synthalorian/.github/main/scripts/verify-release.sh"
+          canon="$RUNNER_TEMP/verify-release.canonical.sh"
+          code="$(curl -sSL -o "$canon" -w '%{http_code}' "$url" || true)"
+          if [ "$code" = "404" ]; then
+            echo "::notice::canonical verifier not found at $url (404); drift check skipped"
+            exit 0
+          fi
+          if [ "$code" != "200" ]; then
+            echo "::notice::could not download $url (HTTP ${code:-none}); drift check skipped"
+            exit 0
+          fi
+          if diff -u "$canon" scripts/verify-release.sh; then
+            echo "scripts/verify-release.sh matches the canonical copy"
+          else
+            echo "::warning file=scripts/verify-release.sh::scripts/verify-release.sh differs from the canonical copy in synthalorian/.github; re-sync it from there"
+          fi
