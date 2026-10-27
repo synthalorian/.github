@@ -1,0 +1,42 @@
+name: Mod collisions
+
+# Per-repo workflow, copied to each mod repo as .github/workflows/mod-collisions.yml.
+# Builds this repo's release zip, fetches the latest published release of every sibling mod
+# and fails if a script name, EditorID, plugin name, voice folder or SEQ file in this
+# package also appears in one of them. All logic lives in scripts/collisions-ci.sh.
+# Sibling repos with no published release are skipped with a notice, never a failure.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mod-collisions-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mod-collisions:
+    name: mod-collisions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Build (Papyrus compile, plugin, FOMOD pack)
+        run: DIST_DIR="$RUNNER_TEMP/dist" ./build.sh
+
+      - name: Check for name collisions with the other mods
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/collisions-ci.sh --dist "$RUNNER_TEMP/dist" --repo "$GITHUB_REPOSITORY"
