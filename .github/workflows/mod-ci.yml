@@ -79,7 +79,7 @@ jobs:
           sys.exit(1 if bad else 0)
           PY
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
 
